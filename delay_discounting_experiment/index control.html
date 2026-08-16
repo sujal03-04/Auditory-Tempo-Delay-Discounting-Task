@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Delay Discounting Task</title>
+
+  <script src="jspsych.js"></script>
+
+  <script src="plugin-html-button-response.js"></script>
+  <script src="plugin-instructions.js"></script>
+  <script src="plugin-survey-html-form.js"></script>
+
+  <link rel="stylesheet" href="jspsych.css">
+  <style>
+    /* Centers the content and prevents "sinking" */
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    .jspsych-content-wrapper {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Keeps buttons consistent without changing their size */
+    .jspsych-btn {
+      min-width: 150px;
+      margin: 10px;
+    }
+    .choice-btn {
+  min-width: 300px;
+  padding: 30px 40px;
+  font-size: 24px;
+}
+  </style>
+</head>
+
+<body>
+  <audio id="bg-audio" loop>
+    <source src="no track" type="audio/mpeg">
+  </audio>
+  
+  <script>
+    /************************************************
+     * 1. Initialize jsPsych
+     ************************************************/
+    function startBackgroundMusic() {
+  const audio = document.getElementById('bg-audio');
+  audio.volume = 0.4; // 40% volume so they can still think
+  audio.play().catch(e => console.log("Audio was blocked. Wait for a click!"));
+}
+    const jsPsych = initJsPsych({
+      on_finish: function () {
+        const trials = jsPsych.data.get().values()
+          // Change this line in your initJsPsych to ensure k is positive
+.filter(t => typeof t.k_trial === "number" && t.k_trial > 0);
+
+        if (trials.length > 0) {
+          const log_sum = trials.reduce((sum, t) => sum + Math.log(t.k_trial), 0);
+          const k_geo = Math.exp(log_sum / trials.length);
+          jsPsych.data.addProperties({
+            k_discounting: k_geo,
+            log_k_discounting: Math.log(k_geo)
+          });
+        }
+
+        // Save session data to CSV
+        jsPsych.data.get().filter({ task_stage: "choice" }).localSave(
+          'csv',
+          '0bpmDDtest.csv'
+        );
+
+        jsPsych.data.displayData();
+      }
+    });
+
+    /************************************************
+     * 2. Participant ID
+     ************************************************/
+    const volume_check = {
+  type: jsPsychHtmlButtonResponse,
+  stimulus: `
+    <div style="text-align: center;">
+      <h2>Audio Check</h2>
+      <p>Please ensure your headphones are connected.</p>
+      <p>Click the button below to confirm you can hear the background audio.</p>
+    </div>`,
+  choices: ['I can hear it, let\'s start'],
+  on_finish: function() {
+    startBackgroundMusic(); // This is the trigger!
+  }
+};
+    const participant_id = {
+      type: jsPsychSurveyHtmlForm,
+      preamble: "<p>Please enter your participant ID:</p>",
+      html: '<input name="participant_id" type="text" required>',
+      on_finish: function (data) {
+        // This adds 'participant_id' to every trial in the dataset
+        jsPsych.data.addProperties({ 
+          participant_id: data.response.participant_id 
+        });
+      }
+    };
+
+    /************************************************
+     * 3. Full Information Sheet
+     ************************************************/
+    const info_sheet = {
+      type: jsPsychInstructions,
+      pages: [
+        `<div style="text-align: left; max-width: 800px; margin: 0 auto;">
+          <h2 style="text-align: center;">Participation Information Sheet</h2>
+          <p><strong>Purpose of the research:</strong> To understand the impact of auditory perception on decision making</p>
+          <p><strong>What you will need to do in the research:</strong></p>
+          <p>You are expected to complete a decision choice task. This task involves making choices between two options that differ in value and time. You will indicate your choice using the computer keyboard by selecting one of the provided options based on what you think is the most valuable choice.</p>
+          <p><strong>Time Required:</strong> The study will take no more than <strong>15 minutes</strong> of your time (about 10 minutes for the task and five minutes for the survey).</p>
+          <p>Your participation will contribute to a better understanding of human decision-making.</p>
+          <p style="text-align: center; margin-top: 20px;">Click <strong>Next</strong> to proceed to the consent form.</p>
+        </div>`
+      ],
+      show_clickable_nav: true
+    };
+
+    /************************************************
+     * 4. Unified Consent Form (With Yes/No Buttons)
+     ************************************************/
+    const today = new Date().toLocaleDateString();
+
+    const consent_page = {
+      type: jsPsychSurveyHtmlForm,
+      preamble: `
+        <div style="text-align: left; max-width: 800px; margin: 0 auto;">
+          <h2 style="text-align: center;">Participant Consent Form</h2>
+          <p>I have read the Participant Information Statement and I understand the study along with its risks and benefits. I have had the opportunity to ask questions, and my questions have been answered. I have given my voluntary, informed consent to participate in the study.</p>
+          <p><strong>Experimenter:</strong> Experimenter</p>
+          <p><strong>Date:</strong> ${today}</p>
+          <hr>
+          <p><strong>Please Note:</strong> Your details will be kept confidential and will only be made available to the researchers. Non-identifying information such as age, etc. will be used for research purposes and identifiable information such as name will not be included in the results.</p>
+          <p>If you consent to participate we request you to fill out your details and press the <strong>YES</strong> button provided. If you do not wish to participate, press the <strong>NO</strong> button.</p>
+        </div>`,
+      html: `
+        <div style="text-align: left; max-width: 800px; margin: 20px auto;">
+          <label for="pname"><strong>Participant Name:</strong> </label>
+          <input id="pname" name="participant_name" type="text" required style="width: 300px;">
+          <div style="margin-top: 30px; text-align: center;">
+            <button type="submit" name="consent_choice" value="no" style="padding: 10px 30px; margin-right: 20px; background-color: #f44336; color: white; border: none; cursor: pointer;">NO</button>
+            <button type="submit" name="consent_choice" value="yes" style="padding: 10px 30px; background-color: #4CAF50; color: white; border: none; cursor: pointer;">YES</button>
+          </div>
+        </div>`,
+      // We hide the default button because we created custom buttons in the HTML above
+      button_label: '', 
+      on_load: function() {
+        // Remove the default jsPsych button because we are using the custom ones in the HTML
+        document.getElementById('jspsych-survey-html-form-next').style.display = 'none';
+      },
+      on_finish: function(data) {
+        const choice = data.response.consent_choice;
+        jsPsych.data.addProperties({
+          consent_name: data.response.participant_name,
+          consent_date: today,
+          consented: choice
+        });
+
+        if (choice === 'no') {
+          jsPsych.endExperiment('<div style="max-width: 600px; margin: 50px auto; text-align: center;"><h3>Thank you for your time.</h3><p>You may now close this browser window.</p></div>');
+        }
+      }
+    };
+    
+    /************************************************
+     * 4.5 Demographic Survey
+     ************************************************/
+    const demographics = {
+      type: jsPsychSurveyHtmlForm,
+      preamble: "<h3>Demographic Information</h3><p>Please answer the following questions before we begin the task.</p>",
+      html: `
+        <div style="text-align: left; max-width: 600px; margin: auto; line-height: 1.8;">
+          <label><strong>Age:</strong></label><br>
+          <input name="age" type="number" min="18" max="100" required><br><br>
+          
+          <label><strong>Gender:</strong></label><br>
+          <select name="gender" required>
+            <option value="">Select...</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="non-binary">Non-binary</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
+          </select><br><br>
+
+          <label><strong>Do you have any musical training or a specific music preference?</strong></label><br>
+          <textarea name="music_preference" rows="3" style="width: 100%;" placeholder="e.g., 5 years of piano, prefer Classical, etc."></textarea>
+        </div>`,
+      button_label: 'Continue to Task',
+      on_finish: function(data) {
+        // This adds these variables to the global dataset (every row of the CSV)
+        jsPsych.data.addProperties({
+          age: data.response.age,
+          gender: data.response.gender,
+          music_pref: data.response.music_preference
+        });
+      }
+    };
+
+    /************************************************
+     * 5. DD Task Instructions & Practice
+     ************************************************/
+    const dd_instructions = {
+      type: jsPsychInstructions,
+      pages: [
+        `<div style="max-width: 800px; margin: 0 auto;">
+          <h3>How the Task Works</h3>
+          <p>In this task, you will make a series of choices between two monetary options.</p>
+          <p>Each choice is between a <strong>smaller amount of money available today</strong> and a <strong>larger amount available after a delay</strong>.</p>
+          <p>There are no right or wrong answers. Please choose the option you genuinely prefer.</p>
+          <hr>
+          <p>We will start with <strong>3 practice rounds</strong> to help you get used to the layout.</p>
+          <p>Click <strong>Next</strong> to start the practice.</p>
+        </div>`
+      ],
+      show_clickable_nav: true
+    };
+
+    const practice_items = [
+      { ss: 100, ll: 150, delay: 30 }, { ss: 450, ll: 800, delay: 14 }, { ss: 200, ll: 250, delay: 60 }
+    ];
+
+    const fixation = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `<div style="display:flex; justify-content:center; align-items:center; height:100vh; font-size:48px;">+</div>`,
+      choices: [],
+      trial_duration: 500,
+      data: { trial_type: "fixation" }
+    };
+
+    const practice_trials = practice_items.map((item, i) => ({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <div style="width: 100vw; text-align: center; margin-top:-80px;">
+          <p><strong>PRACTICE Trial ${i + 1} of 3</strong></p>
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 900px; margin: 70px auto 0 auto;">
+            <button class="jspsych-btn choice-btn">₹${item.ss} today</button>
+            <div style="font-weight: bold;">OR</div>
+            <button class="jspsych-btn choice-btn">₹${item.ll} in ${item.delay} days</button>
+          </div>
+        </div>`,
+      choices: [],
+      data: { task_stage: "practice" },
+      on_load: function () {
+        const start = performance.now();
+        document.querySelectorAll("button").forEach((btn, idx) => {
+          btn.onclick = () => jsPsych.finishTrial({ response: idx, rt: performance.now() - start });
+        });
+      }
+    }));
+
+    const practice_break = {
+      type: jsPsychInstructions,
+      pages: [`<h3>Practice Complete</h3><p>Now let us begin the actual trials.</p><p>Click <strong>Next</strong> to begin the experiment.</p>`],
+      show_clickable_nav: true
+    };
+
+    /************************************************
+     * 6. Actual DD Trials
+     ************************************************/
+    const delay_items = [ 
+   { ss: 540, ll: 550, delay: 117 }, { ss: 550, ll: 750, delay: 61 }, { ss: 190, ll: 250, delay: 53 },
+   { ss: 310, ll: 850, delay: 7 }, { ss: 140, ll: 250, delay: 19 }, { ss: 470, ll: 500, delay: 160 },
+   { ss: 150, ll: 350, delay: 13 }, { ss: 250, ll: 600, delay: 14 }, { ss: 450, ll: 250, delay: 10 }, 
+   { ss: 780, ll: 800, delay: 162 }, { ss: 400, ll: 550, delay: 62 }, { ss: 110, ll: 300, delay: 7 }, 
+   { ss: 670, ll: 750, delay: 119 }, { ss: 340, ll: 350, delay: 186 }, { ss: 270, ll: 500, delay: 21 }, 
+   { ss: 690, ll: 850, delay: 91 }, { ss: 490, ll: 600, delay: 89 },
+   { ss: 800, ll: 850, delay: 157 }, { ss: 240, ll: 350, delay: 29 }, { ss: 330, ll: 800, delay: 14 }, 
+   { ss: 280, ll: 300, delay: 179 }, { ss: 340, ll: 500, delay: 30 }, { ss: 250, ll: 300, delay: 80 }, 
+   { ss: 410, ll: 750, delay: 20 }, { ss: 540, ll: 600, delay: 111 }, { ss: 540, ll: 800, delay: 30 }, 
+   { ss: 220, ll: 250, delay: 136 }, { ss: 200, ll: 550, delay: 7 }
+    ];
+
+    const randomized_items = jsPsych.randomization.shuffle(delay_items);
+
+    const dd_trials = randomized_items.map((item, i) => ({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <div style="width: 100vw; text-align: center; margin-top:-80px;">
+          <p><strong>WHICH ONE DO YOU PREFER?</strong></p>
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 900px; margin: 70px auto 0 auto;">
+            <button class="jspsych-btn choice-btn">₹${item.ss} today</button>
+            <div style="font-weight: bold;">OR</div>
+            <button class="jspsych-btn choice-btn">₹${item.ll} in ${item.delay} days</button>
+          </div>
+        </div>`,
+      choices: [],
+      data: {
+        trial_number: i + 1, ss_amount: item.ss, ll_amount: item.ll, 
+        ll_delay_days: item.delay, task_stage: "choice"
+      },
+      on_load: function () {
+        const start = performance.now();
+        document.querySelectorAll("button").forEach((btn, idx) => {
+          btn.onclick = () => jsPsych.finishTrial({ response: idx, rt: performance.now() - start });
+        });
+      },
+      on_finish: function (data) {
+        data.choice = data.response === 0 ? "SS" : "LL";
+        data.k_trial = data.choice === "SS" ? (item.ll - item.ss) / (item.ss * item.delay) : null;
+      }
+    }));
+
+    /************************************************
+     * 6.5 Temporal Distancing Task
+     ************************************************/
+    const temporal_instruction = {
+      type: jsPsychInstructions,
+      pages: [
+        `<div style="max-width: 800px; margin: 0 auto;">
+          <h3>Time Perception Task</h3>
+          <p>Before we begin the actual trials, we want to test your perception of time.</p>
+          <p>On the next page, there will be a button. Your task is to click that button exactly when <b>YOU</b> think 30 seconds have passed since the page appeared.</p>
+          <p>Please do not use a clock or count out loud. Rely only on your internal sense of time.</p>
+          <p>Click <strong>Next</strong> to proceed to the timer page.</p>
+        </div>`
+      ],
+      show_clickable_nav: true
+    };
+
+    const temporal_task = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <div style="text-align: center;">
+        <h4 style="margin-bottom: 40px;">Press the button below when you feel exactly 30 seconds have passed.</h4>
+        </div>`,
+      choices: ['STOP NOW'],
+      on_finish: function(data) {
+        // We convert ms to seconds and save it to the global data
+        const time_perceived = data.rt / 1000;
+        
+        jsPsych.data.addProperties({
+          temporal_distance_rt: time_perceived
+        });
+        
+        // Tag this trial so it's identifiable in your data
+        data.task_stage = "temporal_task";
+      }
+    };
+
+    /************************************************
+     * 7. Run Timeline
+     ************************************************/
+    jsPsych.run([
+      volume_check,
+      participant_id,
+      info_sheet,
+      consent_page,
+      demographics, // <--- Add this here!
+      dd_instructions,
+      ...practice_trials.flatMap(trial => [fixation, trial]),
+      practice_break,
+      temporal_instruction,
+      temporal_task,
+      ...dd_trials.flatMap(trial => [fixation, trial])
+    ]);
+  </script>
+</body>
+</html>
